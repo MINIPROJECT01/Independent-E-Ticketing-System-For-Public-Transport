@@ -1,92 +1,200 @@
-package com.example.busticketadmin;
+package com.example.busticketinguser;
 
+import android.app.DatePickerDialog;
 import android.app.ProgressDialog;
 import android.content.Intent;
-import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
+import android.os.Bundle;
+import android.support.v7.widget.GridLayoutManager;
+import android.support.v7.widget.RecyclerView;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
-import android.widget.EditText;
-import android.widget.Spinner;
+import android.widget.DatePicker;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.google.android.gms.tasks.OnCompleteListener;
-import com.google.android.gms.tasks.Task;
+import com.example.busticketinguser.Interface.IFirebaseLoadDone;
+import com.example.busticketinguser.Model.IDs;
+import com.firebase.ui.database.FirebaseRecyclerAdapter;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
+import com.toptoche.searchablespinnerlibrary.SearchableSpinner;
 
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.List;
+import java.util.Objects;
 
-public class MainActivity extends AppCompatActivity implements AdapterView.OnItemSelectedListener {
-    private TextView adminName;
-    private Button AddLocationtbtn,AddBus,SeeTickets;
-    private ProgressDialog progressDialog,progresslocation;
-    private String Name,Location,PinCode,State,States;
-    private DatabaseReference databaseName,databaseAddress;
-    private EditText edt_Location,edt_PinNo;
-    private Spinner State_instance_Spinner;
+public class MainActivity extends AppCompatActivity implements IFirebaseLoadDone, DatePickerDialog.OnDateSetListener {
+    SearchableSpinner searchableSpinnerdeparture;
+    SearchableSpinner searchableSpinnerArrival;
+    private DatabaseReference locationref;
+    IFirebaseLoadDone iFirebaseLoadDone;
+    List<IDs> iDs;
+
+
+    private FirebaseUser currentuser;
+    private FirebaseAuth firebaseAuth;
+    private DatabaseReference database,loadbus;
+    private String UserId,name_set;
+    private TextView Tx_Name,Tx_Location_Destination,Tx_Location_Arrival;
+    private Button btn_SignOut,MN_Select_date,Confirm,Add_Money;
+    private ProgressDialog progressDialog;
+    private String STlocation_arrival_pin,STlocation_departure_pin,Finaldate,dbEveryday;
+    private String  dbDate;
+    int day,month,year,dayfinal,monthfinal,yearfinal;
+
+    private RecyclerView MNblload;
+    private GridLayoutManager gridLayoutManager;
+    private String ArrivalAd,DepartureAd;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        progressDialog = new ProgressDialog(this);
-        progresslocation = new ProgressDialog(this);
+        firebaseAuth = FirebaseAuth.getInstance();
         Initialize();
+        TextView_Name();
+        FirebaseDataRetrieve();
+        SpinnerGetText();
         Buttons();
 
-        progressDialog.setTitle("Configuring environment");
-        progressDialog.setCancelable(false);
-        progressDialog.show();
+        Confirm.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if(!STlocation_arrival_pin.equals(STlocation_departure_pin)){
+
+                    if(!STlocation_arrival_pin.isEmpty()&&!STlocation_departure_pin.isEmpty()){
+                        Searching();
+                    }else{
+                        Toast.makeText(MainActivity.this,"Please enter date",Toast.LENGTH_SHORT).show();
+                    }
+
+
+                }else{
+                    Toast.makeText(MainActivity.this,"Location is repeated",Toast.LENGTH_SHORT).show();
+
+
+                }
+
+            }
+        });
+
+
+
+
+
+
+    }
+
+    private void Buttons(){
+        btn_SignOut.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                FirebaseAuth.getInstance().signOut();
+                Intent in = new Intent(MainActivity.this,ActivityStart_User.class);
+                startActivity(in);
+            }
+        });
+        MN_Select_date.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Calendar c = Calendar.getInstance();
+                day = c.get(Calendar.DAY_OF_MONTH);
+                month = c.get(Calendar.MONTH);
+                year = c.get(Calendar.YEAR);
+
+                DatePickerDialog datePickerDialog = new DatePickerDialog(MainActivity.this,
+                        MainActivity.this,year,month,day);
+                datePickerDialog.show();
+
+
+
+            }
+        });
+
+
+
+
 
     }
 
 
     private void Initialize(){
-        AddLocationtbtn = findViewById(R.id.MN_AddLocationbtn);
+        Tx_Name = (TextView)findViewById(R.id.MN_Name);
+        btn_SignOut = findViewById(R.id.MN_Signout);
+        searchableSpinnerdeparture = (SearchableSpinner) findViewById(R.id.MN_Location_Place_Start);
 
 
-        adminName = findViewById(R.id.MN_Name);
+        progressDialog = new ProgressDialog(this);
+        progressDialog.setTitle("Configuring Environment");
+        progressDialog.show();
 
-        AddBus = findViewById(R.id.MN_AddBus);
-        SeeTickets = findViewById(R.id.MN_Tickets);
-        AddLocationtbtn = findViewById(R.id.MN_AddLocationbtn);
+        //firebase
+        currentuser = FirebaseAuth.getInstance().getCurrentUser();
+        UserId = currentuser.getUid();
+        database = FirebaseDatabase.getInstance("https://ebus-3067a-default-rtdb.firebaseio.com/").getReference().child("Users").child(UserId);
+        searchableSpinnerArrival = findViewById(R.id.MN_Location_Place_Destination);
 
+        Tx_Location_Destination = findViewById(R.id.MN_destination_id);
+        Tx_Location_Arrival = findViewById(R.id.MN_Starting_location_id);
+        MN_Select_date = findViewById(R.id.MN_Select_date);
+        Confirm = findViewById(R.id.MN_Search);
 
-        //edittext
-        edt_Location = findViewById(R.id.MN_AddLocationedt);
-        edt_PinNo = findViewById(R.id.MN_LocationPinedt);
-
-
-        //So first I created an array of data.
-        String[] State = new String[]{"","Maharashstra"};
-        //State_instance_Spinner is instance used in Initilize method.
-        State_instance_Spinner =  findViewById(R.id.MN_LocationStateedt);
-        ArrayAdapter<String> adapter = new ArrayAdapter<String>(MainActivity.this,android.R.layout.simple_spinner_item,State);
-        State_instance_Spinner.setAdapter(adapter);
-        State_instance_Spinner.setOnItemSelectedListener(MainActivity.this);
-        //Here I am placing the value from array to the Spinner or you can say it as drop down menu.
-
-        databaseName = FirebaseDatabase.getInstance("https://ebus-3067a-default-rtdb.firebaseio.com/").getReference().child("Admin");
-        databaseAddress = FirebaseDatabase.getInstance("https://ebus-3067a-default-rtdb.firebaseio.com/").getReference().child("Location");
+        gridLayoutManager = new GridLayoutManager(this , 1,GridLayoutManager.VERTICAL,false);
 
 
+        MNblload = findViewById(R.id.MNblload);
+        MNblload.setHasFixedSize(false);
+        MNblload.setLayoutManager(gridLayoutManager);
 
-        databaseName.addValueEventListener(new ValueEventListener() {
+        Button Ticekets_booked = new Button(this);
+        Ticekets_booked = findViewById(R.id.MN_Ticekets_booked);
+
+        Ticekets_booked.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                Intent in = new Intent(MainActivity.this,Ticekets_booked.class);
+                startActivity(in);
+
+            }
+        });
+
+//        Button Add_Money = new Button(this);
+        Add_Money = findViewById(R.id.Add_Money);
+
+        Add_Money.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                startActivity(new Intent(MainActivity.this, Add_Money.class));
+            }
+        });
+
+
+
+
+
+
+
+    }
+
+
+
+    private void TextView_Name(){
+        database.addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(DataSnapshot dataSnapshot) {
-                Name = dataSnapshot.child("Name").getValue().toString();
-                adminName.setText(Name);
-                progressDialog.dismiss();
-                Toast.makeText(MainActivity.this,Name,Toast.LENGTH_SHORT).show();
-
-
+                name_set = Objects.requireNonNull(dataSnapshot.child("Name").getValue()).toString();
+                Tx_Name.setText(name_set);
+                progressDialog.cancel();
             }
 
             @Override
@@ -95,90 +203,223 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
             }
         });
 
+
+
+    }
+
+
+    private void FirebaseDataRetrieve(){
+
+
+        locationref = FirebaseDatabase.getInstance("https://ebus-3067a-default-rtdb.firebaseio.com/").getReference("Locations");
+        iFirebaseLoadDone = this;
+        locationref.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                List<IDs> iDs = new ArrayList<>();
+
+                for (DataSnapshot idSnapShot:dataSnapshot.getChildren()){
+                    iDs.add(idSnapShot.getValue(IDs.class));
+                }
+                iFirebaseLoadDone.onFirebaseLoadSuccess(iDs);
+
+            }
+
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+                iFirebaseLoadDone.onFirebaseLoadFailed(databaseError.getMessage());
+
+            }
+
+        });
+
+
+
+    }
+
+    //this code is for setting the text in
+    private void  SpinnerGetText(){
+        searchableSpinnerArrival.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                IDs iD = iDs.get(position);
+                STlocation_arrival_pin  = iD.getLocation_pin();
+                Tx_Location_Destination.setText(STlocation_arrival_pin);
+                DepartureAd = iD.getPlace();
+
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
+
+
+        searchableSpinnerdeparture.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                IDs iD = iDs.get(position);
+                STlocation_departure_pin = iD.getLocation_pin();
+                Tx_Location_Arrival.setText(STlocation_departure_pin);
+                ArrivalAd =iD.getPlace();
+
+
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
+
+
+    }
+
+
+
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        Finaldate = "Empty";
+
+    }
+
+    @Override
+    public void onFirebaseLoadSuccess(List<IDs> Locationlist) {
+        iDs = Locationlist;
+        List<String> id_list = new ArrayList<>();
+        for (IDs id:Locationlist){
+            id_list.add(id.getPlace());
+            ArrayAdapter<String> adapter = new ArrayAdapter<>(this,android.R.layout.simple_list_item_1,id_list);
+            searchableSpinnerdeparture.setAdapter(adapter);
+            searchableSpinnerArrival.setAdapter(adapter);
+
+        }
     }
 
 
 
     @Override
-    public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-        State = parent.getItemAtPosition(position).toString();
-        Toast.makeText(MainActivity.this,State,Toast.LENGTH_LONG).show();
+    public void onFirebaseLoadFailed(String Message) {
 
     }
+
+
 
     @Override
-    public void onNothingSelected(AdapterView<?> parent) {
+    public void onDateSet(DatePicker view, int year, int month, int dayOfMonth) {
+        yearfinal =year;
+        monthfinal = month+1;
+        dayfinal = dayOfMonth;
+        Finaldate = ("Date:" + dayfinal + "_" + monthfinal +"_" + yearfinal);
+        MN_Select_date.setText(Finaldate);
+//        String dbDate = STlocation_arrival_pin.gett,STlocation_departure_pin,Finaldate;'
+         dbDate = Finaldate + STlocation_departure_pin +STlocation_arrival_pin;
+
 
     }
 
+    public void Searching(){
+        if(Finaldate.equals("Empty")){
+            Toast.makeText(MainActivity.this,"Please select a specific date",Toast.LENGTH_LONG).show();
+            //User should select a specific date.
+
+        }else{
+
+            dbEveryday = "Runs Everyday"+ STlocation_departure_pin + STlocation_arrival_pin;
+       //     loadbus = FirebaseDatabase.getInstance("https://ebus-3067a-default-rtdb.firebaseio.com/").getReference().child("buses");
+
+            loadbus = FirebaseDatabase.getInstance("https://ebus-3067a-default-rtdb.firebaseio.com/").getReference().child("Buses").child(dbEveryday);
+            //
 
 
-    private void Buttons(){
-        AddBus.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                removeedt();
-                Intent in = new Intent(MainActivity.this,AddBus.class);
-                startActivity(in);
+            FirebaseRecyclerAdapter <BusModel,loadView> firebaseRecyclerAdapter = new FirebaseRecyclerAdapter<BusModel, loadView>(
+                    BusModel.class,
+                    R.layout.bus_loading,
+                    loadView.class,
+                   loadbus
+            ) {
+                @Override
+                protected void populateViewHolder(final loadView viewHolder, BusModel model, int position) {
+
+                    final String Blid  = getRef(position).getKey();
+
+
+                    loadbus.child(Blid).addValueEventListener(new ValueEventListener() {
+                        @Override
+                        public void onDataChange(DataSnapshot dataSnapshot) {
+
+                            if(dataSnapshot.hasChild("ArrivalPin") && dataSnapshot.hasChild("ArrivalTime")
+                                    &&dataSnapshot.hasChild("DeparturePin") && dataSnapshot.hasChild("BusNo")
+                                    && dataSnapshot.hasChild("Date")&&dataSnapshot.hasChild("DepartureTime") && dataSnapshot.hasChild("TypeSit")){
+
+
+                                final String ArrivalPin = dataSnapshot.child("ArrivalPin").getValue().toString();
+                                final String ArrivalTime = dataSnapshot.child("ArrivalTime").getValue().toString();
+                                final String Departurepin = dataSnapshot.child("DeparturePin").getValue().toString();
+                                final String BusNo = dataSnapshot.child("BusNo").getValue().toString();
+                                final String Date = dataSnapshot.child("Date").getValue().toString();
+                                final String DepartureTime = dataSnapshot.child("DepartureTime").getValue().toString();
+                                final String TypeSit = dataSnapshot.child("TypeSit").getValue().toString();
+                                final String NoOfSit = dataSnapshot.child("NumberOfSeat").getValue().toString();
+                                final String Ticket_price = dataSnapshot.child("TicketPrice").getValue().toString();
+
+                                viewHolder.settextBusno(BusNo);
+                                viewHolder.settextDate(Date);
+                                viewHolder.settextLocationEnd(DepartureAd);
+                                viewHolder.settextLocationStart(ArrivalAd);
+                                viewHolder.settextSeatType(TypeSit);
+                                viewHolder.settextTimeStart(DepartureTime);
+                                viewHolder.setTextTimeEnd(ArrivalTime);
+                                viewHolder.settextPrice(Ticket_price);
 
 
 
+                                viewHolder.blCard.setOnClickListener(new View.OnClickListener() {
+                                    @Override
+                                    public void onClick(View view) {
+                                        Intent in = new Intent(MainActivity.this,BookTicket.class);
+                                        in.putExtra("ArrivalTime",ArrivalTime);
+                                        in.putExtra("DepartureTime",DepartureTime);
+                                        in.putExtra("BusNo",BusNo);
+                                        in.putExtra("NumberOfSeat",NoOfSit);
+                                        in.putExtra("TypeSit",TypeSit);
+                                        in.putExtra("DepartureAd",DepartureAd);
+                                        in.putExtra("ArrivalAd",ArrivalAd);
+                                        in.putExtra("ArrivalPin",ArrivalPin);
+                                        in.putExtra("Departurepin",Departurepin);
+                                        in.putExtra("Date",Finaldate);
+                                        in.putExtra("Price",Ticket_price);
+                                        startActivity(in);
+                                    }
+                                });
+                            }else {
 
-            }
-        });
+
+                            }
+
+                        }
+
+                        @Override
+                        public void onCancelled(DatabaseError databaseError) {
+
+                        }
+                    });
 
 
-        SeeTickets.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Intent in = new Intent(MainActivity.this,Admin.class);
-                startActivity(in);
 
-            }
-        });
-        AddLocationtbtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Location = edt_Location.getText().toString();
-                PinCode = edt_PinNo.getText().toString();
-                if(!Location.isEmpty() && !PinCode.isEmpty() && !State.equals(null)){
-                    progresslocation.setTitle("Registering");
-                    progresslocation.setCancelable(false);
-                    progresslocation.show();
-                    SetLocation(Location,PinCode,State);
-                }else {
-                    Toast.makeText(MainActivity.this,"Please fill each box",Toast.LENGTH_SHORT).show();
                 }
-            }
-        });
+
+            };
+
+            MNblload.setAdapter(firebaseRecyclerAdapter);
+
+        }
+
+
+
     }
 
-    private void SetLocation(String Location,String PinCode,String State){
-
-        databaseAddress = FirebaseDatabase.getInstance("https://ebus-3067a-default-rtdb.firebaseio.com/").getReference().child("Locations").child(PinCode);
-        HashMap<String, String> loci = new HashMap<>();
-       // Integer PinCode_no =  Integer.parseInt(PinCode);
-        loci.put("Location_pin",PinCode);
-        loci.put("Place",Location.toUpperCase());
-        loci.put("State",State.toUpperCase());
-        databaseAddress.setValue(loci).addOnCompleteListener(new OnCompleteListener<Void>() {
-            @Override
-            public void onComplete( Task<Void> task) {
-                if(task.isSuccessful()){
-                    Toast.makeText(MainActivity.this,"Location Updated in database",Toast.LENGTH_SHORT).show();
-                    progresslocation.dismiss();
-                    removeedt();
-                }else {
-                    Toast.makeText(MainActivity.this,"Location not updated ",Toast.LENGTH_SHORT).show();
-                    progresslocation.dismiss();
-                }
-            }
-        });
-    }
-    private void removeedt(){
-        edt_PinNo.setText("");
-        edt_Location.setText("");
-    }
 
 
 
