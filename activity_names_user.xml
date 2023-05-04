@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/whitetransparent"
+    tools:context=".names_user">
+
+    <TextView
+        android:id="@+id/Heading"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Tickets"
+        android:layout_marginTop="10dp"
+        android:textSize="40dp"
+        android:textColor="#000000"
+        android:textAlignment="center"
+        android:background="@drawable/button_black"
+        ></TextView>
+
+
+
+    <ListView
+        android:layout_marginTop="20dp"
+        android:id="@+id/NM_listView"
+        android:layout_below="@id/Heading"
+        android:layout_width="350dp"
+        android:layout_height="wrap_content"
+        android:layout_centerHorizontal="true"
+        android:background="@drawable/button_black"
+        ></ListView>
+
+
+
+
+
+</RelativeLayout>
